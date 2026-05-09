@@ -1,0 +1,14 @@
+{
+  "name": "methodbus/methodbus",
+  "description": "Plugin-based single endpoint execution engine",
+  "type": "library",
+  "require": {
+    "php": ">=8.2"
+  },
+  "autoload": {
+    "psr-4": {
+      "MethodBus\\": "src/"
+    }
+  },
+  "license": "MIT"
+}
