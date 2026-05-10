@@ -474,3 +474,120 @@ Metadata plugin bersifat static agar:
 * dokumentasi lebih cepat di-generate
 
 Sedangkan instance plugin baru dibuat saat runtime melalui container.
+
+## Flow
+
+#### System Architecture
+
+```mermaid
+graph TD
+    classDef gateway fill:#6366f1,color:#fff,stroke:#4f46e5;
+    classDef core fill:#f8fafc,color:#1e293b,stroke:#cbd5e1;
+    classDef security fill:#fff1f2,color:#be123c,stroke:#fb7185,stroke-dasharray: 5 5;
+    classDef plugin fill:#ecfdf5,color:#065f46,stroke:#10b981;
+
+    A[Client Request]:::gateway --> B[HTTP/CLI Gateway]:::gateway
+    B --> C{MethodBus Kernel}:::core
+    C --> D[[Middleware Pipeline]]:::security
+    D -->|Validated| E[Plugin Manager]:::core
+    E --> F[DI Container]:::core
+    F --> G[Plugin Runner]:::plugin
+    G --> H[Target Plugin]:::plugin
+    H -->|JSON Response| A
+```
+
+#### Request Lifecycle Sequence
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant C as Client
+    participant K as Kernel
+    participant P as Pipeline
+    participant M as Plugin Manager
+    participant PL as Plugin
+
+    C->>+K: Send Request (Headers + Body)
+    K->>+P: Run Security Middleware
+    Note over P: API Key, Timestamp, Nonce, Signature
+    P-->>-K: Success: Context Validated
+    K->>+M: Resolve Plugin (Lazy Loading)
+    M->>+PL: Instantiate & handle()
+    PL-->>-M: Logic Result
+    M-->>-K: Return Array
+    K-->>-C: 200 OK JSON Response
+```
+
+#### Security Validation Logic
+
+```mermaid
+flowchart TD
+    classDef decision fill:#fffbeb,color:#92400e,stroke:#f59e0b;
+    classDef error fill:#fff1f2,color:#991b1b,stroke:#ef4444;
+    classDef success fill:#f0fdf4,color:#166534,stroke:#22c55e;
+
+    Start([Incoming Request]) --> Auth{API Key Valid?}:::decision
+    Auth -- No --> Fail401[Abort 401]:::error
+    Auth -- Yes --> Time{Timestamp Valid?}:::decision
+    Time -- No --> Fail403[Abort 403]:::error
+    Time -- Yes --> Nonce{Nonce Used?}:::decision
+    Nonce -- Yes --> Fail403
+    Nonce -- No --> Sign{Signature Match?}:::decision
+    Sign -- No --> Fail403
+    Sign -- Yes --> Run[Execute Plugin]:::success
+```
+
+#### Dependency Injection & Service Resolver
+
+```mermaid
+graph LR
+    classDef container fill:#f1f5f9,stroke:#475569;
+    classDef service fill:#e0f2fe,stroke:#0ea5e9,color:#0369a1;
+    classDef plugin fill:#6366f1,color:#fff;
+
+    subgraph DI [Container]
+        C1[Reflection]:::container
+        C2[Registry]:::container
+    end
+
+    subgraph Deps [Services]
+        S1[MathService]:::service
+        S2[Logger]:::service
+    end
+
+    P[Plugin Instance]:::plugin
+
+    C1 --> P
+    C2 --> S1 & S2
+    S1 & S2 -->|Injected| P
+```
+
+#### Signature Generation Strategy
+
+```mermaid
+flowchart LR
+    classDef step fill:#f8fafc,stroke:#64748b;
+    classDef result fill:#ecfdf5,stroke:#10b981,color:#065f46;
+
+    P[Payload]:::step --> K[ksort keys]:::step
+    K --> J[json_encode]:::step
+    J --> C[Concatenate with<br/>Timestamp + Nonce]:::step
+    C --> H[HMAC SHA256]:::step
+    S[Shared Secret] --> H
+    H --> R[X-Signature]:::result
+```
+
+#### Modular Discovery (Namespace Routing)
+
+```mermaid
+graph LR
+    classDef bus fill:#1e293b,color:#fff;
+    classDef module fill:#eef2ff,stroke:#6366f1;
+
+    MB((MethodBus)):::bus -->|math:*| M1[Math Module]:::module
+    MB -->|user:*| M2[User Module]:::module
+    MB -->|system:*| M3[System Module]:::module
+    
+    M1 --> V1[add:v1]
+    M1 --> V2[sub:v1]
+```
