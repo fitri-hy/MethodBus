@@ -63,25 +63,29 @@ final class PluginLoader
         $class = null;
 
         if (preg_match('/namespace\s+([^;]+);/', $content, $m)) {
-            $namespace = $m[1];
+            $namespace = trim($m[1]);
         }
 
         if (preg_match('/class\s+([a-zA-Z0-9_]+)/', $content, $m)) {
-            $class = $m[1];
+            $class = trim($m[1]);
         }
 
         if (!$class) {
             return null;
         }
 
-        return $namespace ? $namespace . '\\' . $class : $class;
+        return $namespace
+            ? $namespace . '\\' . $class
+            : $class;
     }
 
     private function registerIfPlugin(string $class): void
     {
         $reflection = new ReflectionClass($class);
 
-        if (!$reflection->implementsInterface(PluginInterface::class)) {
+        if (!$reflection->implementsInterface(
+            PluginInterface::class
+        )) {
             return;
         }
 
@@ -89,8 +93,6 @@ final class PluginLoader
             return;
         }
 
-        $instance = $reflection->newInstance();
-
-        $this->pluginManager->register($instance);
+        $this->pluginManager->register($class);
     }
 }

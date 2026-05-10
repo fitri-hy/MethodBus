@@ -1,162 +1,476 @@
-# MethodBus: PHP Service Bus & Single-Endpoint Gateway
+# MethodBus
 
-**MethodBus** adalah library PHP yang mengimplementasikan pola *Service Bus* dengan arsitektur *Single-Endpoint*. Library ini berfungsi sebagai pusat kontrol (Gateway) yang menerima semua request melalui satu pintu, melakukan validasi keamanan ketat menggunakan HMAC-SHA256, dan mendistribusikan eksekusi ke unit fungsional (Plugins).
+**MethodBus** adalah library PHP berbasis *Service Bus Architecture* dengan pendekatan *Single-Endpoint Gateway*.
 
-## ⚙️ Core Architecture
+MethodBus menerima seluruh request melalui satu endpoint terpusat, melakukan validasi keamanan berlapis, lalu mendistribusikan request ke plugin sesuai routing method.
 
-* **Single Entry Point**: Seluruh trafik HTTP diarahkan ke satu endpoint tunggal.
-* **Header-Based Routing**: Resolusi fungsi menggunakan header `X-Method` (`namespace:action:version`).
-* **Strict Security**: Verifikasi integritas payload wajib menggunakan API Key dan HMAC Signature.
-* **Versioned Documentation**: Mendukung `system:docs` dengan kontrol versi (`latest`, `v1`, dst).
+Library ini dirancang untuk:
 
----
-
-## 🛠 API Reference (Header Specifications)
-
-Semua request (HTTP maupun CLI) wajib memenuhi spesifikasi header berikut:
-
-| Header | Status | Description |
-| --- | --- | --- |
-| `Content-Type` | **Required** | Wajib `application/json`. |
-| `X-Method` | **Required** | Identifier rute. Format: `{namespace}:{action}:{version}`. |
-| `X-ApiKey` | **Required** | Token autentikasi statis sesuai konfigurasi server. |
-| `X-Signature` | **Required** | HMAC-SHA256 dari payload yang sudah di-`ksort`. |
-| `X-Request-ID` | Optional | ID unik untuk tracking log/request tracing. |
+* API Gateway
+* Internal Service Communication
+* Modular Monolith
+* Plugin-Based Application
+* Microservice Architecture
+* Service Oriented Architecture (SOA)
 
 ---
 
-## 🚀 Implementasi HTTP Mode
+## Fitur Utama
 
-### 1. HTTP Basic Setup
+* Single Endpoint Gateway
+* Header-Based Routing
+* Plugin Versioning
+* Dependency Injection Container
+* Constructor Injection
+* Middleware Pipeline
+* Lazy Plugin Resolution
+* Replay Attack Protection
+* Timestamp Validation
+* Nonce Validation
+* HMAC SHA256 Signature
+* HTTP & CLI Support
+* Auto Plugin Discovery
+* Versioned API Documentation
 
-Gunakan ini untuk setup cepat gateway API pada file entry point Anda (misal: `api.php`).
+---
+
+## Arsitektur Inti
+
+| Komponen          | Fungsi                         |
+| ----------------- | ------------------------------ |
+| HTTP Gateway      | Gerbang utama request HTTP     |
+| Kernel            | Orchestrator lifecycle request |
+| Pipeline          | Middleware execution chain     |
+| Plugin Manager    | Registry metadata plugin       |
+| Container         | Dependency Injection resolver  |
+| Plugin Runner     | Menjalankan plugin runtime     |
+| OpenApi Generator | Generator dokumentasi otomatis |
+
+---
+
+## Struktur Konfigurasi
+
+MethodBus menggunakan konfigurasi berbasis file `config/security.php`:
 
 ```php
 <?php
 
-require __DIR__ . '/vendor/autoload.php';
+return [
+    'auth' => [
+        'enabled' => true,
+        'apikey' => 'secret-key-123'
+    ],
 
-use MethodBus\Core\MethodBus;
-use MethodBus\Core\Http;
-
-$bus = new MethodBus();
-$http = new Http($bus);
-
-// Menjalankan HTTP lifecycle secara standar
-$http->handle();
-
+    'signature' => [
+        'enabled' => true,
+        'secret' => 'super-secret-signature-key'
+    ],
+    'replay' => [
+        'enabled' => true,
+        'ttl' => 30
+    ]
+];
 ```
 
-### 2. HTTP Custom Setup (Advanced)
+---
 
-Gunakan ini jika Anda perlu menentukan prefix rute atau memastikan header yang digunakan secara eksplisit.
+## Sistem Keamanan
+
+MethodBus menggunakan beberapa lapisan keamanan:
+
+| Security Layer    | Fungsi                      |
+| ----------------- | --------------------------- |
+| API Key           | Autentikasi client          |
+| Signature         | Validasi integritas payload |
+| Timestamp         | Mencegah request kadaluarsa |
+| Nonce             | Mencegah replay request     |
+| Replay Protection | Menolak request duplikat    |
+
+---
+
+## Header Wajib
+
+Semua request HTTP maupun CLI wajib mengirim header berikut:
+
+| Header       | Wajib    | Keterangan                         |
+| ------------ | -------- | ---------------------------------- |
+| Content-Type | Ya       | `application/json`                 |
+| X-Method     | Ya       | Format: `namespace:action:version` |
+| X-ApiKey     | Ya       | API authentication key             |
+| X-Timestamp  | Ya       | Unix timestamp                     |
+| X-Nonce      | Ya       | Unique random identifier           |
+| X-Signature  | Ya       | HMAC SHA256 signature              |
+| X-Request-ID | Optional | Request tracing                    |
+
+---
+
+## Konsep Signature
+
+MethodBus menggunakan HMAC SHA256 untuk memastikan payload tidak dimodifikasi saat transit.
+
+Signature dibentuk dari:
+
+```text
+json(sorted_payload) + timestamp + nonce
+```
+
+Setelah key diurutkan kemudian di-hash menggunakan shared secret yang sama dengan server.
+
+---
+
+## Shared Secret
+
+Secret client dan server wajib sama.
+
+Contoh konfigurasi:
+
+```php
+'signature' => [
+    'enabled' => true,
+    'secret' => 'super-secret-signature-key'
+]
+```
+
+---
+
+## Timestamp Validation
+
+Timestamp digunakan untuk mencegah request lama digunakan ulang.
+
+Contoh:
+
+```php
+$timestamp = (string) time();
+```
+
+TTL request diatur melalui:
+
+```php
+'replay' => [
+    'enabled' => true,
+    'ttl' => 30
+]
+```
+
+Artinya request hanya valid selama:
+
+```text
+30 detik
+```
+
+---
+
+## Nonce Validation
+
+Nonce adalah identifier unik per request.
+
+Nonce digunakan untuk mencegah replay attack.
+
+Contoh:
+
+```php
+$nonce = bin2hex(
+    random_bytes(16)
+);
+```
+
+Setiap request wajib menggunakan nonce baru.
+
+---
+
+## Generate Signature (PHP)
+
+```php
+ksort($payload);
+
+$message =
+    json_encode($payload)
+    . $timestamp
+    . $nonce;
+
+$signature = hash_hmac(
+    'sha256',
+    $message,
+    'super-secret-signature-key'
+);
+```
+
+---
+
+## HTTP Basic
 
 ```php
 <?php
 
 require __DIR__ . '/vendor/autoload.php';
 
-use MethodBus\Core\MethodBus;
 use MethodBus\Core\Http;
+use MethodBus\Core\MethodBus;
 
 $bus = new MethodBus();
+
+$http = new Http($bus);
+
+$http->handle();
+```
+
+---
+
+## HTTP Custom
+
+```php
+<?php
+
+require __DIR__ . '/vendor/autoload.php';
+
+use MethodBus\Core\Http;
+use MethodBus\Core\MethodBus;
+
+$bus = new MethodBus();
+
 $http = new Http($bus);
 
 $http
-    ->endpoint('/api')          // Prefix rute (optional)
-    ->methodHeader('X-Method')  // Routing header plugin
-    ->handle();                 // Eksekusi request lifecycle
-
+    ->endpoint('/api')
+    ->methodHeader('X-Method')
+    ->handle();
 ```
 
 ---
 
-## 💻 Implementasi CLI Mode
-
-Mode ini digunakan untuk eksekusi langsung dari command line, background job, atau komunikasi antar-service internal.
-
-### CLI dengan Context Reusable
+## CLI Basic
 
 ```php
 <?php
 
-require __DIR__ . '/vendor/autoload.php';
+require __DIR__ . '/../vendor/autoload.php';
 
 use MethodBus\Core\MethodBus;
 
 $bus = new MethodBus();
+$payload = ['a' => 10, 'b' => 20];
+$timestamp = (string) time();
+$nonce = bin2hex( random_bytes(16));
 
-// Helper untuk generate signature
-function sign(array $payload): string {
-    ksort($payload); 
-    return hash_hmac('sha256', json_encode($payload), 'super-secret-signature-key');
+function sign(array $payload, string $timestamp, string $nonce): string {
+    ksort($payload);
+    $message = json_encode($payload) . $timestamp . $nonce;
+
+    return hash_hmac(
+        'sha256',
+        $message,
+        'super-secret-signature-key'
+    );
 }
 
-// Helper context builder
-function makeContext(string $requestId, array $payload): array {
-    return [
-        'headers' => [
-            'Content-Type' => 'application/json',
-            'X-ApiKey'     => 'secret-key-123',
-            'X-Signature'  => sign($payload),
-            'X-Request-ID' => $requestId
-        ]
-    ];
-}
+$context = [
+    'headers' => [
+        'Content-Type' => 'application/json',
+        'X-ApiKey' => 'secret-key-123',
+        'X-Timestamp' => $timestamp,
+        'X-Nonce' => $nonce,
+        'X-Signature' => sign(
+            $payload,
+            $timestamp,
+            $nonce
+        ),
+        'X-Request-ID' => 'cli-default-001'
+    ]
+];
 
-$payload = ['a' => 15, 'b' => 25];
-
-// Eksekusi plugin via Bus call
-$result = $bus->call(
-    'math:add:v1',
-    $payload,
-    makeContext('cli-custom-002', $payload)
-);
-
+$result = $bus->call( 'math:add:v1', $payload, $context);
 print_r($result);
-
 ```
 
 ---
 
-## 📖 Versioned Documentation System
+## Dokumentasi API
 
-MethodBus mendukung pengambilan dokumentasi otomatis berdasarkan versi plugin yang terdaftar.
+MethodBus mendukung dokumentasi otomatis berbasis metadata plugin.
 
-| X-Method | Deskripsi |
-| --- | --- |
-| `system:docs:latest` | Menampilkan dokumentasi versi terbaru dari seluruh plugin. |
-| `system:docs:v1` | Menampilkan dokumentasi spesifik untuk plugin versi 1. |
-| `system:docs:v2` | Menampilkan dokumentasi spesifik untuk plugin versi 2. |
+| Method             | Keterangan                 |
+| ------------------ | -------------------------- |
+| system:docs:latest | Dokumentasi versi terbaru  |
+| system:docs:v1     | Dokumentasi plugin versi 1 |
+| system:docs:v2     | Dokumentasi plugin versi 2 |
 
 ---
 
-## 🔒 Security Protocol (HMAC SHA256)
+## Contoh Plugin
 
-Untuk menjaga integritas data, client wajib melakukan normalisasi payload sebelum hashing.
+```php
+<?php
 
-**Langkah-langkah:**
+namespace MethodBus\Plugins\Math;
 
-1. **Sort**: Urutkan key payload secara alfabetis (`ksort`).
-2. **Serialize**: Konversi ke JSON string padat.
-3. **Sign**: Generate HMAC menggunakan SHA256 dengan *shared secret key*.
+use MethodBus\Contracts\PluginInterface;
+use MethodBus\Contracts\PluginDocumentedInterface;
+use MethodBus\Plugins\Math\Services\MathService;
 
-### Postman Pre-request Script:
+final class AddPluginV1 implements PluginInterface, PluginDocumentedInterface
+{
+    public function __construct(
+        private MathService $math
+    ) {}
+
+    public static function namespace(): string
+    {
+        return 'math';
+    }
+
+    public static function action(): string
+    {
+        return 'add';
+    }
+
+    public static function version(): string
+    {
+        return 'v1';
+    }
+
+    public static function method(): string
+    {
+        return sprintf(
+            '%s:%s:%s',
+            static::namespace(),
+            static::action(),
+            static::version()
+        );
+    }
+
+    public function handle(array $payload): array
+    {
+        return [
+            'result' => $this->math->add(
+                $payload['a'],
+                $payload['b']
+            )
+        ];
+    }
+
+    public static function docs(): array
+    {
+        return [
+            'x-method' => static::method(),
+            'namespace' => static::namespace(),
+            'action' => static::action(),
+            'version' => static::version(),
+            'description' => 'Menjumlahkan dua angka'
+        ];
+    }
+}
+```
+
+---
+
+## Postman Pre-request Script
 
 ```javascript
 const secret = "super-secret-signature-key";
-let body = pm.request.body.raw;
-let json = JSON.parse(body);
 
-// Normalisasi JSON (Sort by Key)
+const timestamp =
+    Math.floor(Date.now() / 1000)
+    .toString();
+
+const nonce =
+    crypto.randomUUID();
+
+let body =
+    JSON.parse(pm.request.body.raw);
+
 let sorted = {};
-Object.keys(json).sort().forEach(k => sorted[k] = json[k]);
 
-const signature = CryptoJS.HmacSHA256(
-    JSON.stringify(sorted),
-    secret
-).toString();
+Object.keys(body)
+    .sort()
+    .forEach(key => {
+        sorted[key] = body[key];
+    });
 
-pm.environment.set("signature", signature);
+const message =
+    JSON.stringify(sorted)
+    + timestamp
+    + nonce;
 
+const signature =
+    CryptoJS.HmacSHA256(
+        message,
+        secret
+    ).toString();
+
+pm.environment.set(
+    "timestamp",
+    timestamp
+);
+
+pm.environment.set(
+    "nonce",
+    nonce
+);
+
+pm.environment.set(
+    "signature",
+    signature
+);
 ```
+
+---
+
+## Header Postman
+
+```http
+Content-Type : application/json
+X-Method     : math:add:v1
+X-ApiKey     : secret-key-123
+X-Timestamp  : {{timestamp}}
+X-Nonce      : {{nonce}}
+X-Signature  : {{signature}}
+```
+
+---
+
+## Body Request
+
+```json
+{
+  "a": 10,
+  "b": 20
+}
+```
+
+---
+
+## Cara Kerja Request Lifecycle
+
+1. Request masuk ke HTTP Gateway
+2. Kernel membuat Request object
+3. Middleware Pipeline dijalankan:
+
+   * API Key Validation
+   * Timestamp Validation
+   * Nonce Validation
+   * Signature Validation
+4. Plugin di-resolve melalui Plugin Manager
+5. Container membuat instance plugin
+6. Plugin dieksekusi oleh Plugin Runner
+7. Response dikembalikan ke client
+
+---
+
+## Catatan Arsitektur
+
+MethodBus menggunakan pendekatan:
+
+* Metadata Registry
+* Static Plugin Metadata
+* Runtime Plugin Resolution
+* Constructor Injection
+* Lazy Loading
+* Middleware Pipeline
+
+Metadata plugin bersifat static agar:
+
+* bootstrap lebih ringan
+* memory usage lebih kecil
+* dokumentasi lebih cepat di-generate
+
+Sedangkan instance plugin baru dibuat saat runtime melalui container.

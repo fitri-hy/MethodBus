@@ -19,19 +19,33 @@ final class SignatureVerifier
         $signature = $request->header('X-Signature');
 
         if (!$signature) {
-            throw new RuntimeException("Missing signature");
+            throw new RuntimeException(
+                "Missing signature"
+            );
         }
+
+        ksort($payload);
+
+        $timestamp = $request->header('X-Timestamp') ?? '';
+        $nonce = $request->header('X-Nonce') ?? '';
 
         $secret = $config['secret'] ?? '';
 
+        $message =
+            json_encode($payload)
+            . $timestamp
+            . $nonce;
+
         $expected = hash_hmac(
             'sha256',
-            json_encode($payload),
+            $message,
             $secret
         );
 
         if (!hash_equals($expected, $signature)) {
-            throw new RuntimeException("Invalid signature");
+            throw new RuntimeException(
+                "Invalid signature"
+            );
         }
 
         return $payload;

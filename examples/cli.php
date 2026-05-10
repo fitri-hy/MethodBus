@@ -4,11 +4,13 @@ require __DIR__ . '/../vendor/autoload.php';
 
 use MethodBus\Core\MethodBus;
 
-$bus = new MethodBus(); // inisialisasi core engine MethodBus (plugin + middleware + kernel)
+/**
+ * initialize MethodBus core
+ */
+$bus = new MethodBus();
 
 /**
- * payload request
- * data input yang akan diproses oleh plugin math:add:v1
+ * request payload
  */
 $payload = [
     'a' => 10,
@@ -16,36 +18,67 @@ $payload = [
 ];
 
 /**
- * generate signature (WAJIB)
- * digunakan untuk validasi keamanan server (anti manipulasi payload)
+ * replay protection headers
  */
-function sign(array $payload): string
-{
-    ksort($payload); // pastikan urutan data konsisten agar signature tidak berubah
+$timestamp = (string) time();
 
+$nonce = bin2hex(
+    random_bytes(16)
+);
+
+/**
+ * generate secure HMAC signature
+ */
+function sign(
+    array $payload,
+    string $timestamp,
+    string $nonce
+): string {
+
+    /**
+     * normalize payload
+     */
+    ksort($payload);
+
+    /**
+     * build signature source
+     */
+    $message =
+        json_encode($payload)
+        . $timestamp
+        . $nonce;
+
+    /**
+     * generate HMAC SHA256
+     */
     return hash_hmac(
         'sha256',
-        json_encode($payload), // payload harus sama dengan server
+        $message,
         'super-secret-signature-key'
     );
 }
 
 /**
- * request context (WAJIB untuk auth + signature validation)
- * semua header dikirim manual di CLI mode
+ * request context
  */
 $context = [
     'headers' => [
-        'Content-Type' => 'application/json', // format request
-        'X-ApiKey'     => 'secret-key-123',   // autentikasi API key
-        'X-Signature'  => sign($payload),     // signature HMAC payload
-        'X-Request-ID' => 'cli-default-001'   // tracking request
+        'Content-Type' => 'application/json',
+        'X-ApiKey' => 'secret-key-123',
+        'X-Timestamp' => $timestamp,
+        'X-Nonce' => $nonce,
+        'X-Signature' => sign(
+            $payload,
+            $timestamp,
+            $nonce
+        ),
+
+        'X-Request-ID' => 'cli-default-001'
     ]
 ];
 
 /**
- * eksekusi plugin MethodBus
- * format: namespace:action:version
+ * execute plugin
  */
 $result = $bus->call(
     'math:add:v1',
@@ -54,6 +87,6 @@ $result = $bus->call(
 );
 
 /**
- * output response dari server
+ * output response
  */
 print_r($result);

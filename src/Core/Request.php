@@ -66,4 +66,14 @@ final class Request
     {
         return $this->requestId;
     }
+
+	public function timestamp(): ?string
+	{
+		return $this->header('X-Timestamp');
+	}
+
+	public function nonce(): ?string
+	{
+		return $this->header('X-Nonce');
+	}
 }

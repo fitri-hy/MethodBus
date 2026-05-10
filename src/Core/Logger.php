@@ -4,8 +4,33 @@ namespace MethodBus\Core;
 
 final class Logger
 {
-    public function log(string $requestId, string $stage, array $data = []): void
+    private string $logFile;
+
+    public function __construct()
     {
+        $storagePath = Path::root(
+            'storage/methodbus'
+        );
+
+        if (!is_dir($storagePath)) {
+            mkdir(
+                $storagePath,
+                0777,
+                true
+            );
+        }
+
+        $this->logFile =
+            $storagePath
+            . '/logger.log';
+    }
+
+    public function log(
+        string $requestId,
+        string $stage,
+        array $data = []
+    ): void {
+
         $log = [
             'request_id' => $requestId,
             'stage' => $stage,
@@ -14,8 +39,9 @@ final class Logger
         ];
 
         file_put_contents(
-            __DIR__ . '/../../storage.log',
-            json_encode($log) . PHP_EOL,
+            $this->logFile,
+            json_encode($log)
+            . PHP_EOL,
             FILE_APPEND
         );
     }

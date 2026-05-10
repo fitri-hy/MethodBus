@@ -3,29 +3,38 @@
 namespace MethodBus\Core;
 
 use MethodBus\Core\PluginManager;
+use MethodBus\Contracts\PluginDocumentedInterface;
 
 final class OpenApiGenerator
 {
-    private PluginManager $pluginManager;
+    public function __construct(
+        private PluginManager $pluginManager
+    ) {}
 
-    public function __construct(PluginManager $pluginManager)
-    {
-        $this->pluginManager = $pluginManager;
-    }
+    public function generate(
+        string $version = 'latest'
+    ): array {
 
-    public function generate(string $version = 'latest'): array
-    {
         $grouped = [];
 
-        foreach ($this->pluginManager->all() as $method => $plugin) {
+        foreach (
+            $this->pluginManager->all()
+            as $method => $pluginClass
+        ) {
 
-            if (!method_exists($plugin, 'docs')) {
+            if (!is_subclass_of(
+                $pluginClass,
+                PluginDocumentedInterface::class
+            )) {
                 continue;
             }
 
-            $meta = $plugin->docs();
+            $meta = $pluginClass::docs();
 
-            $baseKey = $meta['namespace'] . ':' . $meta['action'];
+            $baseKey =
+                $meta['namespace']
+                . ':'
+                . $meta['action'];
 
             $grouped[$baseKey][] = $meta;
         }
@@ -36,14 +45,25 @@ final class OpenApiGenerator
 
             if ($version === 'latest') {
 
-                $latest = $this->getLatestVersion($versions);
-                $result[$latest['x-method']] = $latest;
+                $latest = $this->getLatestVersion(
+                    $versions
+                );
+
+                $result[
+                    $latest['x-method']
+                ] = $latest;
 
             } else {
 
                 foreach ($versions as $v) {
-                    if (($v['version'] ?? null) === $version) {
-                        $result[$v['x-method']] = $v;
+
+                    if (
+                        ($v['version'] ?? null)
+                        === $version
+                    ) {
+                        $result[
+                            $v['x-method']
+                        ] = $v;
                     }
                 }
             }
@@ -52,9 +72,12 @@ final class OpenApiGenerator
         return $result;
     }
 
-    private function getLatestVersion(array $versions): array
-    {
+    private function getLatestVersion(
+        array $versions
+    ): array {
+
         usort($versions, function ($a, $b) {
+
             return version_compare(
                 $a['version'] ?? 'v1',
                 $b['version'] ?? 'v1'

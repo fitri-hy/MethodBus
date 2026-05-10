@@ -4,33 +4,48 @@ namespace MethodBus\Plugins\Math;
 
 use MethodBus\Contracts\PluginInterface;
 use MethodBus\Contracts\PluginDocumentedInterface;
+use MethodBus\Plugins\Math\Services\MathService;
 
-final class AddPluginV1 implements PluginInterface, PluginDocumentedInterface
+final class AddPluginV1 implements
+    PluginInterface,
+    PluginDocumentedInterface
 {
-    public function namespace(): string
+    public function __construct(
+        private MathService $math
+    ) {}
+
+    public static function namespace(): string
     {
         return 'math';
     }
 
-    public function action(): string
+    public static function action(): string
     {
         return 'add';
     }
 
-    public function version(): string
+    public static function version(): string
     {
         return 'v1';
     }
 
-    public function method(): string
+    public static function method(): string
     {
-        return $this->namespace() . ':' . $this->action() . ':' . $this->version();
+        return sprintf(
+            '%s:%s:%s',
+            static::namespace(),
+            static::action(),
+            static::version()
+        );
     }
 
     public function handle(array $payload): array
     {
         return [
-            'result' => $payload['a'] + $payload['b']
+            'result' => $this->math->add(
+                $payload['a'],
+                $payload['b']
+            )
         ];
     }
 
@@ -42,25 +57,38 @@ final class AddPluginV1 implements PluginInterface, PluginDocumentedInterface
         ];
     }
 
-    public function docs(): array
-    {
-        return [
-            'x-method' => $this->method(),
-            'namespace' => $this->namespace(),
-            'action' => $this->action(),
-            'version' => $this->version(),
-            'method' => 'POST',
+	public static function docs(): array
+	{
+		return [
+			'x-method' => static::method(),
 
-            'description' => 'Menjumlahkan dua angka',
+			'namespace' => static::namespace(),
 
-            'request' => [
-                'a' => ['type' => 'number', 'required' => true],
-                'b' => ['type' => 'number', 'required' => true]
-            ],
+			'action' => static::action(),
 
-            'response' => [
-                'result' => ['type' => 'number']
-            ]
-        ];
-    }
+			'version' => static::version(),
+
+			'method' => 'POST',
+
+			'description' => 'Menjumlahkan dua angka',
+
+			'request' => [
+				'a' => [
+					'type' => 'number',
+					'required' => true
+				],
+
+				'b' => [
+					'type' => 'number',
+					'required' => true
+				]
+			],
+
+			'response' => [
+				'result' => [
+					'type' => 'number'
+				]
+			]
+		];
+	}
 }

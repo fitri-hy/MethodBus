@@ -4,5 +4,5 @@ namespace MethodBus\Contracts;
 
 interface PluginDocumentedInterface
 {
-    public function docs(): array;
+    public static function docs(): array;
 }

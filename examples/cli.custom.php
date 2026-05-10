@@ -5,53 +5,85 @@ require __DIR__ . '/../vendor/autoload.php';
 use MethodBus\Core\MethodBus;
 
 /**
- * generate signature (WAJIB)
- * digunakan untuk validasi keamanan server
+ * generate secure HMAC signature
  */
-function sign(array $payload): string
-{
-    ksort($payload); // stabilisasi data sebelum hashing
+function sign(
+    array $payload,
+    string $timestamp,
+    string $nonce
+): string {
+
+    ksort($payload);
+
+    $message =
+        json_encode($payload)
+        . $timestamp
+        . $nonce;
 
     return hash_hmac(
         'sha256',
-        json_encode($payload),
+        $message,
         'super-secret-signature-key'
     );
 }
 
 /**
- * membuat context request
- * reusable builder untuk header CLI
+ * reusable request context builder
  */
-function makeContext(string $requestId, array $payload): array
-{
+function makeContext(
+    string $requestId,
+    array $payload
+): array {
+
+    $timestamp = (string) time();
+
+    $nonce = bin2hex(
+        random_bytes(16)
+    );
+
     return [
         'headers' => [
-            'Content-Type' => 'application/json', // format request
-            'X-ApiKey'     => 'secret-key-123',   // API authentication
-            'X-Signature'  => sign($payload),     // signature HMAC
-            'X-Request-ID' => $requestId          // tracking request
+            'Content-Type' => 'application/json',
+            'X-ApiKey' => 'secret-key-123',
+            'X-Timestamp' => $timestamp,
+            'X-Nonce' => $nonce,
+            'X-Signature' => sign(
+                $payload,
+                $timestamp,
+                $nonce
+            ),
+
+            'X-Request-ID' => $requestId
         ]
     ];
 }
 
-$bus = new MethodBus(); // inisialisasi core engine MethodBus
+/**
+ * initialize MethodBus
+ */
+$bus = new MethodBus();
 
+/**
+ * payload request
+ */
 $payload = [
     'a' => 15,
     'b' => 25
 ];
 
 /**
- * eksekusi plugin MethodBus dengan context reusable
+ * execute plugin
  */
 $result = $bus->call(
     'math:add:v1',
     $payload,
-    makeContext('cli-custom-002', $payload)
+    makeContext(
+        'cli-custom-002',
+        $payload
+    )
 );
 
 /**
- * output response server
+ * output response
  */
 print_r($result);
