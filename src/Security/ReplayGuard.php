@@ -12,16 +12,26 @@ final class ReplayGuard
         private NonceStore $store
     ) {}
 
-    public function process(Request $request, array $payload): array
-    {
-        $config = Config::get('security.replay');
+    public function process(
+        Request $request,
+        array $payload
+    ): array {
+
+        $config = Config::get(
+            'security.replay'
+        );
 
         if (!($config['enabled'] ?? false)) {
             return $payload;
         }
 
-        $timestamp = $request->header('X-Timestamp');
-        $nonce = $request->header('X-Nonce');
+        $timestamp = $request->header(
+            'X-Timestamp'
+        );
+
+        $nonce = $request->header(
+            'X-Nonce'
+        );
 
         if (!$timestamp || !$nonce) {
             throw new RuntimeException(
@@ -29,21 +39,39 @@ final class ReplayGuard
             );
         }
 
-        $ttl = (int) ($config['ttl'] ?? 30);
+        $ttl = (int) (
+            $config['ttl'] ?? 30
+        );
 
-        if (abs(time() - (int)$timestamp) > $ttl) {
+        if (
+            abs(
+                time() - (int) $timestamp
+            ) > $ttl
+        ) {
             throw new RuntimeException(
                 'Request expired'
             );
         }
 
-        if ($this->store->has($nonce)) {
+        $apiKey = $request->header(
+            'X-ApiKey'
+        ) ?? '';
+
+        $key =
+            $apiKey
+            . ':'
+            . $nonce;
+
+        if (
+            !$this->store->remember(
+                $key,
+                $ttl
+            )
+        ) {
             throw new RuntimeException(
                 'Replay attack detected'
             );
         }
-
-        $this->store->store($nonce, $ttl);
 
         return $payload;
     }
