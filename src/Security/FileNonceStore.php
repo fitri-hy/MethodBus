@@ -23,46 +23,47 @@ final class FileNonceStore implements NonceStore
         }
     }
 
-    public function has(
-        string $nonce
+    public function remember(
+        string $key,
+        int $ttl
     ): bool {
 
-        $file = $this->file($nonce);
+        $file = $this->file($key);
 
-        if (!file_exists($file)) {
+        if (is_file($file)) {
+
+            $expires = (int)
+                file_get_contents($file);
+
+            if (time() <= $expires) {
+                return false;
+            }
+
+            @unlink($file);
+        }
+
+        $handle = @fopen($file, 'x');
+
+        if ($handle === false) {
             return false;
         }
 
-        $expires = (int)
-            file_get_contents($file);
+        fwrite(
+            $handle,
+            (string) (time() + $ttl)
+        );
 
-        if (time() > $expires) {
-
-            unlink($file);
-
-            return false;
-        }
+        fclose($handle);
 
         return true;
     }
 
-    public function store(
-        string $nonce,
-        int $ttl
-    ): void {
-
-        file_put_contents(
-            $this->file($nonce),
-            time() + $ttl
-        );
-    }
-
     private function file(
-        string $nonce
+        string $key
     ): string {
 
         return $this->path
             . '/'
-            . sha1($nonce);
+            . hash('sha256', $key);
     }
 }
