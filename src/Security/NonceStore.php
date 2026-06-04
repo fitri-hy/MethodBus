@@ -4,7 +4,8 @@ namespace MethodBus\Security;
 
 interface NonceStore
 {
-    public function has(string $nonce): bool;
-
-    public function store(string $nonce, int $ttl): void;
+    public function remember(
+        string $key,
+        int $ttl
+    ): bool;
 }
