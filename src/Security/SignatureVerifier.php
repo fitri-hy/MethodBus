@@ -8,31 +8,51 @@ use RuntimeException;
 
 final class SignatureVerifier
 {
-    public function process(Request $request, array $payload): array
-    {
-        $config = Config::get('security.signature');
+    public function process(
+        Request $request,
+        array $payload
+    ): array {
+
+        $config = Config::get(
+            'security.signature'
+        );
 
         if (!($config['enabled'] ?? false)) {
             return $payload;
         }
 
-        $signature = $request->header('X-Signature');
+        $signature = $request->header(
+            'X-Signature'
+        );
 
         if (!$signature) {
             throw new RuntimeException(
-                "Missing signature"
+                'Missing signature'
             );
         }
 
         ksort($payload);
 
-        $timestamp = $request->header('X-Timestamp') ?? '';
-        $nonce = $request->header('X-Nonce') ?? '';
+        $timestamp =
+            $request->header(
+                'X-Timestamp'
+            ) ?? '';
 
-        $secret = $config['secret'] ?? '';
+        $nonce =
+            $request->header(
+                'X-Nonce'
+            ) ?? '';
+
+        $secret =
+            $config['secret']
+            ?? '';
 
         $message =
-            json_encode($payload)
+            json_encode(
+                $payload,
+                JSON_UNESCAPED_UNICODE
+                | JSON_UNESCAPED_SLASHES
+            )
             . $timestamp
             . $nonce;
 
@@ -42,9 +62,14 @@ final class SignatureVerifier
             $secret
         );
 
-        if (!hash_equals($expected, $signature)) {
+        if (
+            !hash_equals(
+                $expected,
+                $signature
+            )
+        ) {
             throw new RuntimeException(
-                "Invalid signature"
+                'Invalid signature'
             );
         }
 
